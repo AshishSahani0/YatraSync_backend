@@ -34,54 +34,56 @@ public class AuthController {
         this.userRepository = userRepository;
     }
 
+    // 🔁 REFRESH TOKEN
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(HttpServletRequest request,
                                      HttpServletResponse response) {
 
-        String refreshToken = Optional.ofNullable(request.getCookies())
-                .flatMap(cookies -> Arrays.stream(cookies)
-                        .filter(c -> "refresh_token".equals(c.getName()))
-                        .map(Cookie::getValue)
-                        .findFirst())
-                .orElse(null);
+        String refreshToken = extractCookie(request, "refresh_token");
 
         if (refreshToken == null) {
             return ResponseEntity.status(401).body("Refresh token missing");
         }
 
-        RefreshToken rt;
         try {
-            rt = refreshTokenService.validateToken(refreshToken);
+            // ✅ VALIDATE + GET USER
+            RefreshToken rt = refreshTokenService.validateToken(refreshToken);
+
+            User user = userRepository.findByEmail(rt.getEmail())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // 🔁 ROTATE REFRESH TOKEN (VERY IMPORTANT)
+            String newRefreshToken = refreshTokenService.rotateRefreshToken(refreshToken);
+
+            // 🔑 NEW ACCESS TOKEN
+            String newAccessToken = jwtService.generateToken(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getRole().name()
+            );
+
+            // 🍪 SET COOKIES
+            addCookie(response, "access_token", newAccessToken, 15 * 60);
+            addCookie(response, "refresh_token", newRefreshToken, 7 * 24 * 60 * 60);
+
+            return ResponseEntity.ok("Refreshed");
+
         } catch (Exception e) {
-            return ResponseEntity.status(401).body("Invalid refresh token");
+
+            // ❌ HARD FAIL → logout
+            deleteCookie(response, "access_token");
+            deleteCookie(response, "refresh_token");
+
+            return ResponseEntity.status(401).body("Refresh failed");
         }
-
-        User user = userRepository.findByEmail(rt.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        String newRefreshToken = refreshTokenService.createRefreshToken(user.getEmail());
-
-        String newAccessToken = jwtService.generateToken(
-                user.getEmail(),
-                user.getRole().name()
-        );
-
-        addCookie(response, "access_token", newAccessToken, 15 * 60);
-        addCookie(response, "refresh_token", newRefreshToken, 7 * 24 * 60 * 60);
-
-        return ResponseEntity.ok("Token refreshed");
     }
 
+    // 🚪 LOGOUT
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request,
                                     HttpServletResponse response) {
 
-        String refreshToken = Optional.ofNullable(request.getCookies())
-                .flatMap(cookies -> Arrays.stream(cookies)
-                        .filter(c -> "refresh_token".equals(c.getName()))
-                        .map(Cookie::getValue)
-                        .findFirst())
-                .orElse(null);
+        String refreshToken = extractCookie(request, "refresh_token");
 
         if (refreshToken != null) {
             try {
@@ -96,6 +98,17 @@ public class AuthController {
         return ResponseEntity.ok("Logged out");
     }
 
+    // 🔍 COOKIE EXTRACTOR (REUSABLE)
+    private String extractCookie(HttpServletRequest request, String name) {
+        return Optional.ofNullable(request.getCookies())
+                .flatMap(cookies -> Arrays.stream(cookies)
+                        .filter(c -> name.equals(c.getName()))
+                        .map(Cookie::getValue)
+                        .findFirst())
+                .orElse(null);
+    }
+
+    // 🍪 ADD COOKIE
     private void addCookie(HttpServletResponse response,
                            String name,
                            String value,
@@ -106,26 +119,23 @@ public class AuthController {
         String cookie;
 
         if (isProd) {
-            // 🌐 Production (HTTPS required)
+            // ✅ PRODUCTION
             cookie = String.format(
                     "%s=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=None; Secure",
-                    name,
-                    value,
-                    maxAge
+                    name, value, maxAge
             );
         } else {
-            // 🧪 Local development (IMPORTANT FIX)
+            // ✅ LOCALHOST (CRITICAL FIX)
             cookie = String.format(
                     "%s=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Lax",
-                    name,
-                    value,
-                    maxAge
+                    name, value, maxAge
             );
         }
 
         response.addHeader("Set-Cookie", cookie);
     }
 
+    // ❌ DELETE COOKIE
     private void deleteCookie(HttpServletResponse response, String name) {
 
         boolean isProd = "prod".equalsIgnoreCase(env);

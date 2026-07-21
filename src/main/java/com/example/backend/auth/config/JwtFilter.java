@@ -2,7 +2,7 @@ package com.example.backend.auth.config;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders; // ✅ IMPORTANT FIX
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.Nonnull;
 import jakarta.servlet.FilterChain;
@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -27,71 +28,96 @@ public class JwtFilter extends OncePerRequestFilter {
     @Value("${app.jwt.secret}")
     private String secret;
 
-    // ✅ FIXED: SAME KEY LOGIC AS JwtService
     private SecretKey getKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
+    protected void doFilterInternal(@Nonnull HttpServletRequest request,
                                     @Nonnull HttpServletResponse response,
                                     @Nonnull FilterChain filterChain)
             throws ServletException, IOException {
 
-        try {
-            String token = null;
+        String uri = request.getRequestURI();
 
-            // 🔍 Extract from cookies
-            if (request.getCookies() != null) {
-                for (Cookie cookie : request.getCookies()) {
-                    if ("access_token".equals(cookie.getName())) {
-                        token = cookie.getValue();
+        // ✅ Skip only truly public routes
+        if (isPublicRoute(uri)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        try {
+            String token = extractToken(request);
+
+            if (token != null && !token.isBlank()) {
+
+                // 🛡️ CSRF Mitigation: Verify custom header for mutating requests using cookies
+                String method = request.getMethod();
+                if (List.of("POST", "PUT", "DELETE", "PATCH").contains(method.toUpperCase())) {
+                    String customHeader = request.getHeader("X-Requested-With");
+                    if (customHeader == null || customHeader.isBlank()) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.getWriter().write("CSRF Protection: Missing custom header");
+                        return;
                     }
                 }
-            }
 
-            // 🔁 Fallback: Authorization header
-            if (token == null) {
-                String authHeader = request.getHeader("Authorization");
-                if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                    token = authHeader.substring(7);
+                Claims claims = Jwts.parserBuilder()
+                        .setSigningKey(getKey())
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+
+                String userId = claims.getSubject();
+                String role = claims.get("role", String.class);
+
+                if (userId != null && role != null &&
+                        SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                    List<SimpleGrantedAuthority> authorities =
+                            List.of(new SimpleGrantedAuthority("ROLE_" + role));
+
+                    UsernamePasswordAuthenticationToken auth =
+                            new UsernamePasswordAuthenticationToken(
+                                    userId,
+                                    null,
+                                    authorities
+                            );
+
+                    auth.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+
+                    SecurityContextHolder.getContext().setAuthentication(auth);
                 }
             }
 
-            // 🚫 No token → continue
-            if (token == null) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            // 🔐 Parse JWT
-            Claims claims = Jwts.parserBuilder()
-                    .setSigningKey(getKey())
-                    .build()
-                    .parseClaimsJws(token)
-                    .getBody();
-
-            String email = claims.getSubject();
-            String role = claims.get("role", String.class);
-
-            // 🛡️ Authorities
-            List<SimpleGrantedAuthority> authorities =
-                    List.of(new SimpleGrantedAuthority("ROLE_" + role));
-
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(email, null, authorities);
-
-            SecurityContextHolder.getContext().setAuthentication(auth);
-
-            // ✅ DEBUG (optional)
-            System.out.println("JWT VALID: " + email);
-
         } catch (Exception e) {
-            // ❌ Invalid token
             SecurityContextHolder.clearContext();
             System.out.println("JWT ERROR: " + e.getMessage());
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    // ✅ PUBLIC ROUTES ONLY (DO NOT include /api/user/me)
+    private boolean isPublicRoute(String uri) {
+        return uri.startsWith("/auth") ||
+                uri.startsWith("/oauth2") ||
+                uri.startsWith("/error");
+    }
+
+    // 🍪 Extract token from cookie
+    private String extractToken(HttpServletRequest request) {
+
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("access_token".equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+
+        return null;
     }
 }

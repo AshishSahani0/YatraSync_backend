@@ -9,8 +9,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuthEventListener {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+
+    public AuthEventListener(UserService userService) {
+        this.userService = userService;
+    }
 
     @EventListener
     public void handle(AuthSuccessEvent event) {

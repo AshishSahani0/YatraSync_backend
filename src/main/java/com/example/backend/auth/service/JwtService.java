@@ -15,57 +15,81 @@ public class JwtService {
     @Value("${app.jwt.secret}")
     private String secret;
 
-    @Value("${app.jwt.access-expiration:900000}") // default 15 min
+    @Value("${app.jwt.access-expiration:900000}")
     private long accessTokenExpiry;
 
-    // 🔐 Generate secure key (Base64 recommended)
     private SecretKey getKey() {
         return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
-    // 🔑 GENERATE TOKEN
-    public String generateToken(String email, String role) {
+    // 🔑 GENERATE ACCESS TOKEN
+    public String generateToken(String userId, String email, String role) {
+
+        if (userId == null || role == null) {
+            throw new RuntimeException("Invalid token payload");
+        }
+
         return Jwts.builder()
-                .setSubject(email)
+                .setSubject(userId)
+                .claim("email", email)
                 .claim("role", role)
-                .setIssuer("your-app") // 🔥 add issuer
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenExpiry))
                 .signWith(getKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    // 🔍 EXTRACT ALL CLAIMS
+    // 🔍 EXTRACT CLAIMS (handles expired tokens too)
     public Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getKey())
-                .build()
-                .parseClaimsJws(token)
-                .getBody();
+        try {
+            return Jwts.parserBuilder()
+                    .setSigningKey(getKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+        } catch (ExpiredJwtException e) {
+            return e.getClaims(); // 🔥 IMPORTANT
+        }
     }
 
-    // 📧 EXTRACT EMAIL
-    public String extractEmail(String token) {
+    public String extractUserId(String token) {
         return extractAllClaims(token).getSubject();
     }
 
-    // 👤 EXTRACT ROLE
+    public String extractEmail(String token) {
+        return extractAllClaims(token).get("email", String.class);
+    }
+
     public String extractRole(String token) {
         return extractAllClaims(token).get("role", String.class);
     }
 
-    // ⏰ CHECK EXPIRATION
     public boolean isTokenExpired(String token) {
-        return extractAllClaims(token).getExpiration().before(new Date());
+        try {
+            return extractAllClaims(token).getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
     }
 
-    // ✅ VALIDATE TOKEN
+    // ✅ STRICT VALIDATION
     public boolean isValid(String token) {
         try {
-            extractAllClaims(token);
+            Jwts.parserBuilder()
+                    .setSigningKey(getKey())
+                    .build()
+                    .parseClaimsJws(token);
+
             return true;
+
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    // 🔐 EXTRA SAFE (optional)
+    public boolean isValidForUser(String token, String userId) {
+        return isValid(token) && extractUserId(token).equals(userId);
     }
 }
