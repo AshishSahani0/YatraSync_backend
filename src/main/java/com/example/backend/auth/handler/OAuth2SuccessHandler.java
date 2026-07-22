@@ -82,7 +82,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.setHeader("Pragma", "no-cache");
 
             // 🔁 REDIRECT TO FRONTEND
-            response.sendRedirect(frontendUrl);
+            String targetUrl = frontendUrl;
+            if (frontendUrl != null && !frontendUrl.contains("localhost") && !frontendUrl.contains("127.0.0.1")) {
+                String separator = frontendUrl.contains("?") ? "&" : "?";
+                targetUrl = frontendUrl + separator + "token=" + accessToken + "&refresh_token=" + refreshToken;
+            }
+            response.sendRedirect(targetUrl);
 
         } catch (Exception e) {
             e.printStackTrace();

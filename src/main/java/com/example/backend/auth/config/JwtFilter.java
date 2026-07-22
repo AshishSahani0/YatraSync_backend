@@ -107,9 +107,15 @@ public class JwtFilter extends OncePerRequestFilter {
                 uri.startsWith("/error");
     }
 
-    // 🍪 Extract token from cookie
+    // 🔑 Extract token from Header or Cookie
     private String extractToken(HttpServletRequest request) {
+        // 1. Try extracting from Authorization: Bearer <token> header
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
 
+        // 2. Fallback to extracting from Cookie
         if (request.getCookies() != null) {
             for (Cookie cookie : request.getCookies()) {
                 if ("access_token".equals(cookie.getName())) {

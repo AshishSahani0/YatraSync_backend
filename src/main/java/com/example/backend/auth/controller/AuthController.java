@@ -39,7 +39,7 @@ public class AuthController {
     public ResponseEntity<?> refresh(HttpServletRequest request,
                                      HttpServletResponse response) {
 
-        String refreshToken = extractCookie(request, "refresh_token");
+        String refreshToken = getRefreshToken(request);
 
         if (refreshToken == null) {
             return ResponseEntity.status(401).body("Refresh token missing");
@@ -66,7 +66,12 @@ public class AuthController {
             addCookie(response, "access_token", newAccessToken, 15 * 60);
             addCookie(response, "refresh_token", newRefreshToken, 7 * 24 * 60 * 60);
 
-            return ResponseEntity.ok("Refreshed");
+            // Also return tokens in response body for custom header/Bearer storage
+            return ResponseEntity.ok(java.util.Map.of(
+                    "status", "Refreshed",
+                    "access_token", newAccessToken,
+                    "refresh_token", newRefreshToken
+            ));
 
         } catch (Exception e) {
 
@@ -83,7 +88,7 @@ public class AuthController {
     public ResponseEntity<?> logout(HttpServletRequest request,
                                     HttpServletResponse response) {
 
-        String refreshToken = extractCookie(request, "refresh_token");
+        String refreshToken = getRefreshToken(request);
 
         if (refreshToken != null) {
             try {
@@ -106,6 +111,23 @@ public class AuthController {
                         .map(Cookie::getValue)
                         .findFirst())
                 .orElse(null);
+    }
+
+    // 🔑 REFRESH TOKEN EXTRACTOR FALLBACK
+    private String getRefreshToken(HttpServletRequest request) {
+        String token = extractCookie(request, "refresh_token");
+        if (token != null && !token.isBlank()) {
+            return token;
+        }
+        String header = request.getHeader("X-Refresh-Token");
+        if (header != null && !header.isBlank()) {
+            return header;
+        }
+        String param = request.getParameter("refresh_token");
+        if (param != null && !param.isBlank()) {
+            return param;
+        }
+        return null;
     }
 
     // 🍪 ADD COOKIE
