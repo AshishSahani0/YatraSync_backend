@@ -50,15 +50,15 @@ public class SecurityConfig {
                 // 🔐 headers
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp ->
-                                csp.policyDirectives(
-                                        "default-src 'self'; " +
-                                                "script-src 'self' https://accounts.google.com; " +
-                                                "style-src 'self' 'unsafe-inline'; " +
-                                                "img-src 'self' data: https://accounts.google.com; " +
-                                                "frame-src https://accounts.google.com; " +
-                                                "connect-src 'self' http://localhost:8081"
-                                )
-                        )
+    csp.policyDirectives(
+        "default-src 'self'; " +
+        "script-src 'self' https://accounts.google.com; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data: https://accounts.google.com; " +
+        "frame-src https://accounts.google.com; " +
+        "connect-src 'self' http://localhost:3000 https://yatrasync.netlify.app https://yatrasync-backend.onrender.com"
+    )
+)
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
                         .httpStrictTransportSecurity(hsts ->
                                 hsts.includeSubDomains(true).maxAgeInSeconds(31536000)
@@ -119,7 +119,10 @@ public class SecurityConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
+        config.setAllowedOrigins(List.of(
+        "http://localhost:3000",
+        "https://yatrasync.netlify.app"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
 

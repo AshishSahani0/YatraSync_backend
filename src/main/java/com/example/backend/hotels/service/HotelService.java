@@ -14,9 +14,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import com.example.backend.common.dto.ReviewStats;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -275,9 +277,20 @@ public class HotelService {
         String base = name.toLowerCase()
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
+
+        if (!hotelRepository.existsBySlug(base)) {
+            return base;
+        }
+
+        List<Hotel> existing = hotelRepository.findBySlugStartingWith(base);
+        java.util.Set<String> slugSet = new java.util.HashSet<>();
+        for (Hotel h : existing) {
+            slugSet.add(h.getSlug());
+        }
+
         String slug = base;
         int count = 1;
-        while (hotelRepository.findBySlug(slug).isPresent()) {
+        while (slugSet.contains(slug)) {
             slug = base + "-" + count++;
         }
         return slug;
@@ -310,20 +323,25 @@ public class HotelService {
     public void recalculateAndSaveAverageRating(String hotelId) {
         Hotel hotel = hotelRepository.findById(hotelId)
                 .orElseThrow(() -> new RuntimeException("Hotel not found"));
-        List<HotelReview> reviews = hotelReviewRepository.findByHotelId(hotelId);
+
+        Optional<ReviewStats> statsOpt = hotelReviewRepository.getReviewStatsByHotelId(hotelId);
+        double userAvg = 0.0;
+        int userCount = 0;
+
+        if (statsOpt.isPresent()) {
+            ReviewStats stats = statsOpt.get();
+            userCount = stats.getTotalReviews() != null ? stats.getTotalReviews() : 0;
+            userAvg = stats.getAverageRating() != null ? stats.getAverageRating() : 0.0;
+        }
 
         double adminAvg = hotel.getAdminAverageRating() != null ? hotel.getAdminAverageRating() : 0.0;
         int adminCount = hotel.getAdminTotalReviews() != null ? hotel.getAdminTotalReviews() : 0;
 
-        int userCount = reviews.size();
         int totalReviews = adminCount + userCount;
         double averageRating = 0.0;
 
         if (totalReviews > 0) {
-            double sum = adminAvg * adminCount;
-            for (HotelReview r : reviews) {
-                sum += r.getRating();
-            }
+            double sum = (adminAvg * adminCount) + (userAvg * userCount);
             averageRating = sum / totalReviews;
             // Round to 1 decimal place
             averageRating = Math.round(averageRating * 10.0) / 10.0;

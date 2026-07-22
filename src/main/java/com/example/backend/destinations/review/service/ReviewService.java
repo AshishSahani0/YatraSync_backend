@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import com.example.backend.common.dto.ReviewStats;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -78,18 +79,15 @@ public class ReviewService {
     }
 
     private void recalculateAndSaveAverageRating(String destinationId) {
-        List<Review> reviews = reviewRepository.findByDestinationId(destinationId);
-        int totalReviews = reviews.size();
+        Optional<ReviewStats> statsOpt = reviewRepository.getReviewStatsByDestinationId(destinationId);
         double averageRating = 0.0;
+        int totalReviews = 0;
 
-        if (totalReviews > 0) {
-            double sum = 0.0;
-            for (Review r : reviews) {
-                sum += r.getRating();
-            }
-            averageRating = sum / totalReviews;
-            // Round to 1 decimal place
-            averageRating = Math.round(averageRating * 10.0) / 10.0;
+        if (statsOpt.isPresent()) {
+            ReviewStats stats = statsOpt.get();
+            totalReviews = stats.getTotalReviews() != null ? stats.getTotalReviews() : 0;
+            double avg = stats.getAverageRating() != null ? stats.getAverageRating() : 0.0;
+            averageRating = Math.round(avg * 10.0) / 10.0;
         }
 
         destinationService.updateDestinationReviews(destinationId, averageRating, totalReviews);

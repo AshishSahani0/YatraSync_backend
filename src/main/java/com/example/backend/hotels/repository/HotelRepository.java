@@ -5,12 +5,17 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface HotelRepository extends MongoRepository<Hotel, String> {
 
     /** Used by slug uniqueness checker during create/update */
     Optional<Hotel> findBySlug(String slug);
+
+    boolean existsBySlug(String slug);
+
+    List<Hotel> findBySlugStartingWith(String prefix);
 
     /** Admin paginated list — non-deleted only */
     Page<Hotel> findByIsDeletedFalse(Pageable pageable);

@@ -130,10 +130,19 @@ public class DestinationService {
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
 
+        if (!destinationRepository.existsBySlug(base)) {
+            return base;
+        }
+
+        List<Destination> existing = destinationRepository.findBySlugStartingWith(base);
+        java.util.Set<String> slugSet = new java.util.HashSet<>();
+        for (Destination d : existing) {
+            slugSet.add(d.getSlug());
+        }
+
         String slug = base;
         int count = 1;
-
-        while (destinationRepository.findBySlug(slug).isPresent()) {
+        while (slugSet.contains(slug)) {
             slug = base + "-" + count++;
         }
 

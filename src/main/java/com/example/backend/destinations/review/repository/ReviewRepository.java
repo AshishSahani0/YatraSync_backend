@@ -4,6 +4,8 @@ import com.example.backend.destinations.review.model.Review;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import com.example.backend.common.dto.ReviewStats;
+import org.springframework.data.mongodb.repository.Aggregation;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,4 +20,10 @@ public interface ReviewRepository extends MongoRepository<Review, String> {
     void deleteByDestinationIdAndUserId(String destinationId, String userId);
     
     long countByDestinationId(String destinationId);
+
+    @Aggregation(pipeline = {
+        "{ '$match': { 'destinationId': ?0 } }",
+        "{ '$group': { '_id': null, 'averageRating': { '$avg': '$rating' }, 'totalReviews': { '$sum': 1 } } }"
+    })
+    Optional<ReviewStats> getReviewStatsByDestinationId(String destinationId);
 }

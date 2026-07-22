@@ -25,11 +25,13 @@ public class Destination {
 
 
     @Indexed
+    @TextIndexed
     private String name;
 
     @Indexed(unique = true)
     private String slug;
 
+    @TextIndexed
     private String description;
 
 

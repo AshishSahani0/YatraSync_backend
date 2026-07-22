@@ -1,6 +1,8 @@
 package com.example.backend.user.service;
 
 import com.example.backend.common.Role;
+import com.example.backend.common.exception.BadRequestException;
+import com.example.backend.common.exception.ResourceNotFoundException;
 import com.example.backend.media.service.MediaService;
 import com.example.backend.user.dto.ProfileUpdateRequest;
 import com.example.backend.user.model.User;
@@ -50,7 +52,7 @@ public class UserService {
 
     public User getById(String userId) {
         return repository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
 
@@ -65,11 +67,11 @@ public class UserService {
             String newUserName = normalizeUsername(req.getUserName());
 
             if (!isValidUsername(newUserName)) {
-                throw new RuntimeException("Invalid username");
+                throw new BadRequestException("Invalid username");
             }
 
             if (repository.existsByUserName(newUserName)) {
-                throw new RuntimeException("Username already exists");
+                throw new BadRequestException("Username already exists");
             }
 
             user.setUserName(newUserName);
@@ -87,7 +89,7 @@ public class UserService {
 
         if (req.getBio() != null) {
             if (req.getBio().length() > 150) {
-                throw new RuntimeException("Bio too long");
+                throw new BadRequestException("Bio too long");
             }
             user.setBio(req.getBio());
         }

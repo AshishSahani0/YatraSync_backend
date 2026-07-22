@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -35,11 +36,13 @@ public class Hotel {
     private String id;
 
     @Indexed
+    @TextIndexed
     private String name;
 
     @Indexed(unique = true)
     private String slug;
 
+    @TextIndexed
     private String description;
     private String shortDescription;
 

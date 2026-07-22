@@ -14,6 +14,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.mongodb.core.query.TextCriteria;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -219,14 +220,9 @@ public class GuideService {
         query.addCriteria(Criteria.where("isDeleted").is(false));
         query.addCriteria(Criteria.where("isAvailable").is(true));
 
+        // Search text matching using text index (O(log N) complexity)
         if (search != null && !search.trim().isEmpty()) {
-            String searchRegex = ".*" + search.trim() + ".*";
-            Criteria searchCriteria = new Criteria().orOperator(
-                    Criteria.where("fullName").regex(searchRegex, "i"),
-                    Criteria.where("specialties").regex(searchRegex, "i"),
-                    Criteria.where("tags").regex(searchRegex, "i")
-            );
-            query.addCriteria(searchCriteria);
+            query.addCriteria(TextCriteria.forDefaultLanguage().matching(search.trim()));
         }
 
         if (destinationIds != null && !destinationIds.isEmpty()) {
@@ -269,6 +265,9 @@ public class GuideService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortField));
         query.with(pageable);
 
+        // 🏷️ Optimize payload: project only required fields for guide list card view
+        query.fields().include("id", "fullName", "displayName", "slug", "profileImage", "guideType", "destinationIds", "languages", "basePrice", "averageRating", "reviewCount", "isAvailable", "featuredGuide", "yearsOfExperience", "specialties", "tags");
+
         List<Guide> list = mongoTemplate.find(query, Guide.class);
 
         return PageResponse.from(new PageImpl<>(list, pageable, total));
@@ -280,11 +279,20 @@ public class GuideService {
         String base = name.toLowerCase()
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
+
+        if (!guideRepository.existsBySlug(base)) {
+            return base;
+        }
+
+        List<Guide> existing = guideRepository.findBySlugStartingWith(base);
+        java.util.Set<String> slugSet = new java.util.HashSet<>();
+        for (Guide g : existing) {
+            slugSet.add(g.getSlug());
+        }
+
         String slug = base;
         int count = 1;
-        
-        // Optimistic check: if collision, add count suffix
-        while (guideRepository.findBySlug(slug).isPresent()) {
+        while (slugSet.contains(slug)) {
             slug = base + "-" + count++;
         }
         return slug;

@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.mongodb.core.query.TextCriteria;
 import java.util.List;
 
 @Service
@@ -35,16 +36,9 @@ public class GetHotelService {
         query.addCriteria(Criteria.where("isActive").is(true));
         query.addCriteria(Criteria.where("isDeleted").is(false));
 
-        // 🔍 Search text matching name, description, landmark, or city
+        // 🔍 Search text matching using text index (O(log N) complexity)
         if (filter.getSearch() != null && !filter.getSearch().trim().isEmpty()) {
-            String searchRegex = ".*" + filter.getSearch().trim() + ".*";
-            Criteria searchCriteria = new Criteria().orOperator(
-                    Criteria.where("name").regex(searchRegex, "i"),
-                    Criteria.where("description").regex(searchRegex, "i"),
-                    Criteria.where("location.city").regex(searchRegex, "i"),
-                    Criteria.where("location.landmark").regex(searchRegex, "i")
-            );
-            query.addCriteria(searchCriteria);
+            query.addCriteria(TextCriteria.forDefaultLanguage().matching(filter.getSearch().trim()));
         }
 
         // 🗺️ Destination filter
@@ -104,6 +98,9 @@ public class GetHotelService {
 
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by(direction, sortByField));
         query.with(pageable);
+
+        // 🏷️ Optimize payload: project only required fields for stay list card view
+        query.fields().include("id", "name", "slug", "hotelType", "destinationId", "location", "images", "coverImageUrl", "amenities", "averageNightPrice", "taxIncluded", "starRating", "averageRating", "totalReviews", "isActive", "isFullyBooked", "isFeatured", "isTrending", "popularityScore");
 
         // 📦 Fetch current page slice
         List<Hotel> list = mongoTemplate.find(query, Hotel.class);

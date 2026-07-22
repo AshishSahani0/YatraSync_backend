@@ -5,6 +5,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.Indexed;
+import org.springframework.data.mongodb.core.index.TextIndexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -28,6 +29,7 @@ public class Guide {
     private String id;
 
     @Indexed
+    @TextIndexed
     private String fullName;
     private String displayName;
     
@@ -77,7 +79,9 @@ public class Guide {
     private SafetyInfo safety;
     private VerificationDetails verification;
     
+    @TextIndexed
     private List<String> specialties = new ArrayList<>();
+    @TextIndexed
     private List<String> tags = new ArrayList<>();
 
     // Review / Social

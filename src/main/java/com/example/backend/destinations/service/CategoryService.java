@@ -58,10 +58,19 @@ public class CategoryService {
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("(^-|-$)", "");
 
+        if (!repository.existsBySlug(base)) {
+            return base;
+        }
+
+        List<Category> existing = repository.findBySlugStartingWith(base);
+        java.util.Set<String> slugSet = new java.util.HashSet<>();
+        for (Category c : existing) {
+            slugSet.add(c.getSlug());
+        }
+
         String slug = base;
         int count = 1;
-
-        while (repository.findBySlug(slug).isPresent()) {
+        while (slugSet.contains(slug)) {
             slug = base + "-" + count++;
         }
 

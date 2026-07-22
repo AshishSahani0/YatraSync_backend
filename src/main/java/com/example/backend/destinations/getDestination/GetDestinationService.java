@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import org.springframework.data.mongodb.core.query.TextCriteria;
 import java.util.List;
 import java.util.Optional;
 
@@ -52,14 +53,9 @@ public class GetDestinationService {
         query.addCriteria(Criteria.where("status").is("APPROVED"));
         query.addCriteria(Criteria.where("isDeleted").is(false));
 
-        // 🔍 Search text matching
+        // 🔍 Search text matching using text index (O(log N) complexity)
         if (filter.getSearch() != null && !filter.getSearch().trim().isEmpty()) {
-            String searchRegex = ".*" + filter.getSearch().trim() + ".*";
-            Criteria searchCriteria = new Criteria().orOperator(
-                    Criteria.where("name").regex(searchRegex, "i"),
-                    Criteria.where("description").regex(searchRegex, "i")
-            );
-            query.addCriteria(searchCriteria);
+            query.addCriteria(TextCriteria.forDefaultLanguage().matching(filter.getSearch().trim()));
         }
 
         // 🏷️ Filter by categories list
@@ -102,6 +98,9 @@ public class GetDestinationService {
 
         Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), Sort.by(direction, sortByField));
         query.with(pageable);
+
+        // 🏷️ Optimize payload: project only required fields for list view
+        query.fields().include("id", "name", "slug", "location", "categoryIds", "tags", "images", "costLevel", "averageRating", "totalReviews", "popularityScore", "isFeatured");
 
         // 📦 Fetch current page slice
         List<Destination> list = mongoTemplate.find(query, Destination.class);

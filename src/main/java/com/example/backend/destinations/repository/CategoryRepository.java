@@ -11,6 +11,10 @@ public interface CategoryRepository extends MongoRepository<Category, String> {
 
     Optional<Category> findBySlug(String slug);
 
+    boolean existsBySlug(String slug);
+
+    List<Category> findBySlugStartingWith(String prefix);
+
 
 
     List<Category> findByIsActiveTrueOrderByPriorityAscNameAsc();

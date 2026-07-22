@@ -14,6 +14,10 @@ public interface DestinationRepository extends MongoRepository<Destination, Stri
 
     Optional<Destination> findBySlug(String slug);
 
+    boolean existsBySlug(String slug);
+
+    List<Destination> findBySlugStartingWith(String prefix);
+
 
 
     Page<Destination> findByIsDeletedFalse(Pageable pageable);

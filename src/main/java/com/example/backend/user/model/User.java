@@ -19,6 +19,7 @@ public class User {
     @Indexed(unique = true)
     private String userName;
 
+    @Indexed(unique = true)
     private String email;
 
     private Role role = Role.USER;
