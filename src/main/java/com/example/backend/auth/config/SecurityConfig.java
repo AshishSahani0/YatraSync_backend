@@ -128,6 +128,7 @@ public class SecurityConfig {
 
         // 🔥 REQUIRED FOR COOKIES
         config.setAllowCredentials(true);
+        config.setExposedHeaders(List.of("X-Auth-Error", "X-Rate-Limit-Limit", "X-Rate-Limit-Remaining"));
 
         UrlBasedCorsConfigurationSource source =
                 new UrlBasedCorsConfigurationSource();

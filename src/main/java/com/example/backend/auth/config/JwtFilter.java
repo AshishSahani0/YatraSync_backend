@@ -94,6 +94,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
             SecurityContextHolder.clearContext();
+            response.setHeader("X-Auth-Error", e.getMessage());
             System.out.println("JWT ERROR: " + e.getMessage());
         }
 
