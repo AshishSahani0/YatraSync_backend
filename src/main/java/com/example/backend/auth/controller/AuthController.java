@@ -83,6 +83,27 @@ public class AuthController {
         }
     }
 
+    // 🚪 INIT OAUTH LOGIN WITH DYNAMIC ORIGIN
+    @GetMapping("/login-init")
+    public void loginInit(@RequestParam("origin") String origin,
+                          HttpServletResponse response) throws java.io.IOException {
+        boolean isProd = "prod".equalsIgnoreCase(env);
+        String cookie;
+        if (isProd) {
+            cookie = String.format(
+                    "frontend_origin=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=None; Secure",
+                    origin, 300
+            );
+        } else {
+            cookie = String.format(
+                    "frontend_origin=%s; Max-Age=%d; Path=/; HttpOnly; SameSite=Lax",
+                    origin, 300
+            );
+        }
+        response.addHeader("Set-Cookie", cookie);
+        response.sendRedirect("/oauth2/authorization/google");
+    }
+
     // 🚪 LOGOUT
     @PostMapping("/logout")
     public ResponseEntity<?> logout(HttpServletRequest request,

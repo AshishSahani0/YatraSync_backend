@@ -81,11 +81,14 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
             response.setHeader("Cache-Control", "no-store");
             response.setHeader("Pragma", "no-cache");
 
-            // 🔁 REDIRECT TO FRONTEND
-            String targetUrl = frontendUrl;
-            if (frontendUrl != null && !frontendUrl.contains("localhost") && !frontendUrl.contains("127.0.0.1")) {
-                String separator = frontendUrl.contains("?") ? "&" : "?";
-                targetUrl = frontendUrl + separator + "token=" + accessToken + "&refresh_token=" + refreshToken;
+            // 🔁 REDIRECT TO FRONTEND (WITH DYNAMIC ORIGIN FALLBACK)
+            String origin = extractCookie(request, "frontend_origin");
+            String targetUrl = (origin != null && !origin.isBlank()) ? origin : frontendUrl;
+            deleteCookie(response, "frontend_origin");
+
+            if (targetUrl != null && !targetUrl.contains("localhost") && !targetUrl.contains("127.0.0.1")) {
+                String separator = targetUrl.contains("?") ? "&" : "?";
+                targetUrl = targetUrl + separator + "token=" + accessToken + "&refresh_token=" + refreshToken;
             }
             response.sendRedirect(targetUrl);
 
@@ -145,5 +148,14 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         }
 
         response.addHeader("Set-Cookie", cookie);
+    }
+
+    private String extractCookie(HttpServletRequest request, String name) {
+        if (request.getCookies() == null) return null;
+        return java.util.Arrays.stream(request.getCookies())
+                .filter(c -> name.equals(c.getName()))
+                .map(jakarta.servlet.http.Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 }
